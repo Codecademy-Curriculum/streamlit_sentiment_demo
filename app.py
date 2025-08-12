@@ -4,7 +4,7 @@ from pathlib import Path
 import streamlit as st
 import pandas as pd
 import numpy as np
-import seaborn as sns
+#import seaborn as sns
 import matplotlib.pyplot as plt
 import io
 from datetime import datetime, timedelta
@@ -13,9 +13,9 @@ from transformers import pipeline
 import torch
 
 # Configure matplotlib and seaborn
-plt.style.use('default')
-sns.set_palette("husl")
-sns.set_style("whitegrid")
+#plt.style.use('default')
+#sns.set_palette("husl")
+#sns.set_style("whitegrid")
 
 # Page configuration
 st.set_page_config(
@@ -605,4 +605,5 @@ st.markdown("""
     Built with ❤️ using Streamlit, Seaborn, and Hugging Face Transformers<br>
     Perfect for learning AI deployment and sentiment analysis!
 </div>
+
 """, unsafe_allow_html=True)
