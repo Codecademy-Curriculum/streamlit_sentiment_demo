@@ -13,9 +13,9 @@ from transformers import pipeline
 import torch
 
 # Configure matplotlib and seaborn
-#plt.style.use('default')
-#sns.set_palette("husl")
-#sns.set_style("whitegrid")
+plt.style.use('default')
+sns.set_palette("husl")
+sns.set_style("whitegrid")
 
 # Page configuration
 st.set_page_config(
