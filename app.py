@@ -11,6 +11,24 @@ import re
 from transformers import pipeline
 import torch
 
+def standardize_sentiment_label(label):
+    """Standardize sentiment labels to uppercase"""
+    if pd.isna(label):
+        return 'NEUTRAL'
+    
+    label_str = str(label).lower()
+    
+    mapping = {
+        'label_0': 'NEGATIVE',
+        'label_1': 'NEUTRAL',  
+        'label_2': 'POSITIVE',
+        'negative': 'NEGATIVE',
+        'positive': 'POSITIVE',
+        'neutral': 'NEUTRAL'
+    }
+    
+    return mapping.get(label_str, str(label).upper())
+
 # Configure matplotlib and seaborn
 plt.style.use('default')
 sns.set_palette("husl")
@@ -128,13 +146,17 @@ def create_sentiment_metrics(df):
         'LABEL_2': 'NEUTRAL',
         'NEGATIVE': 'NEGATIVE',
         'POSITIVE': 'POSITIVE',
-        'NEUTRAL': 'NEUTRAL'
+        'NEUTRAL': 'NEUTRAL',
+                # Add lowercase mappings
+        'negative': 'NEGATIVE',
+        'positive': 'POSITIVE',
+        'neutral': 'NEUTRAL'
     }
     
     df['sentiment_mapped'] = df['sentiment'].map(label_mapping).fillna(df['sentiment'])
     sentiment_counts = df['sentiment_mapped'].value_counts()
     total = len(df)
-    
+    print(df)
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -175,7 +197,7 @@ def create_sentiment_metrics(df):
         )
 
 def create_visualizations(df):
-    """Create visualizations using seaborn and matplotlib"""
+    """Create visualizations using matplotlib with proper Streamlit integration"""
     if df is None or len(df) == 0:
         st.warning("No data available for visualization.")
         return None, None, None
@@ -183,90 +205,154 @@ def create_visualizations(df):
     # Handle different label formats
     label_mapping = {
         'LABEL_0': 'NEGATIVE',
-        'LABEL_1': 'POSITIVE', 
-        'LABEL_2': 'NEUTRAL',
+        'LABEL_1': 'NEUTRAL', 
+        'LABEL_2': 'POSITIVE',
         'NEGATIVE': 'NEGATIVE',
         'POSITIVE': 'POSITIVE',
-        'NEUTRAL': 'NEUTRAL'
+        'NEUTRAL': 'NEUTRAL',
+                # Add lowercase mappings
+        'negative': 'NEGATIVE',
+        'positive': 'POSITIVE',
+        'neutral': 'NEUTRAL'
     }
     
     df['sentiment_mapped'] = df['sentiment'].map(label_mapping).fillna(df['sentiment'])
     
-    # Define color palette
-    colors = ['#2E8B57', '#DC143C', '#4682B4']  # Green, Red, Blue
-    sentiment_order = ['POSITIVE', 'NEGATIVE', 'NEUTRAL']
+    # Debug output
+    st.write(f"Debug: Mapped sentiment counts: {df['sentiment_mapped'].value_counts()}")
     
-    # 1. Sentiment Distribution Pie Chart
-    fig1, ax1 = plt.subplots(figsize=(8, 6))
-    sentiment_counts = df['sentiment_mapped'].value_counts()
-    
-    # Ensure we have the right colors for each sentiment
-    pie_colors = []
-    pie_labels = []
-    pie_values = []
-    
+    # Define colors
     color_map = {'POSITIVE': '#2E8B57', 'NEGATIVE': '#DC143C', 'NEUTRAL': '#4682B4'}
     
-    for sentiment in sentiment_counts.index:
-        pie_labels.append(sentiment)
-        pie_values.append(sentiment_counts[sentiment])
-        pie_colors.append(color_map.get(sentiment, '#636EFA'))
+    # 1. Sentiment Distribution Pie Chart
+    plt.style.use('default')  # Reset style
+    fig1, ax1 = plt.subplots(figsize=(8, 6), facecolor='white')
     
-    wedges, texts, autotexts = ax1.pie(pie_values, labels=pie_labels, colors=pie_colors, 
-                                      autopct='%1.1f%%', startangle=90)
-    ax1.set_title('Sentiment Distribution', fontsize=16, fontweight='bold')
+    sentiment_counts = df['sentiment_mapped'].value_counts()
+    
+    if len(sentiment_counts) > 0:
+        # Prepare data for pie chart
+        labels = sentiment_counts.index.tolist()
+        sizes = sentiment_counts.values.tolist()
+        colors = [color_map.get(label, '#636EFA') for label in labels]
+        
+        # Create pie chart
+        wedges, texts, autotexts = ax1.pie(
+            sizes, 
+            labels=labels, 
+            colors=colors,
+            autopct='%1.1f%%', 
+            startangle=90,
+            textprops={'fontsize': 12}
+        )
+        
+        ax1.set_title('Sentiment Distribution', fontsize=16, fontweight='bold', pad=20)
+        
+        # Make percentage text bold
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontweight('bold')
+    else:
+        ax1.text(0.5, 0.5, 'No Data', ha='center', va='center', fontsize=16)
+        ax1.set_title('Sentiment Distribution', fontsize=16, fontweight='bold')
+    
+    fig1.tight_layout()
     
     # 2. Confidence Score Distribution
-    fig2, ax2 = plt.subplots(figsize=(10, 6))
+    fig2, ax2 = plt.subplots(figsize=(10, 6), facecolor='white')
     
-    # Create histogram for each sentiment
-    for i, sentiment in enumerate(sentiment_order):
-        if sentiment in df['sentiment_mapped'].values:
-            subset = df[df['sentiment_mapped'] == sentiment]
-            if len(subset) > 0:
-                ax2.hist(subset['confidence'], bins=15, alpha=0.7, 
-                        label=sentiment, color=color_map[sentiment])
+    if 'confidence' in df.columns and len(df) > 0:
+        # Create histogram for each sentiment
+        sentiment_order = ['POSITIVE', 'NEGATIVE', 'NEUTRAL']
+        
+        for sentiment in sentiment_order:
+            if sentiment in df['sentiment_mapped'].values:
+                subset = df[df['sentiment_mapped'] == sentiment]
+                if len(subset) > 0:
+                    ax2.hist(
+                        subset['confidence'], 
+                        bins=15, 
+                        alpha=0.7, 
+                        label=sentiment, 
+                        color=color_map[sentiment],
+                        edgecolor='black',
+                        linewidth=0.5
+                    )
+        
+        ax2.set_xlabel('Confidence Score', fontsize=12, fontweight='bold')
+        ax2.set_ylabel('Count', fontsize=12, fontweight='bold')
+        ax2.set_title('Confidence Score Distribution by Sentiment', fontsize=16, fontweight='bold', pad=20)
+        ax2.legend(fontsize=10)
+        ax2.grid(True, alpha=0.3)
+        ax2.set_facecolor('white')
+    else:
+        ax2.text(0.5, 0.5, 'No Confidence Data', ha='center', va='center', fontsize=16)
+        ax2.set_title('Confidence Score Distribution', fontsize=16, fontweight='bold')
     
-    ax2.set_xlabel('Confidence Score', fontsize=12)
-    ax2.set_ylabel('Count', fontsize=12)
-    ax2.set_title('Confidence Score Distribution by Sentiment', fontsize=16, fontweight='bold')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
+    fig2.tight_layout()
     
     # 3. Top Confident Predictions
-    fig3, (ax3_left, ax3_right) = plt.subplots(1, 2, figsize=(15, 6))
+    fig3, (ax3_left, ax3_right) = plt.subplots(1, 2, figsize=(15, 6), facecolor='white')
     
     # Most confident positive
-    top_positive = df[df['sentiment_mapped'] == 'POSITIVE'].nlargest(5, 'confidence')
-    if not top_positive.empty:
-        y_pos = range(len(top_positive))
-        ax3_left.barh(y_pos, top_positive['confidence'], color='#2E8B57', alpha=0.7)
-        ax3_left.set_yticks(y_pos)
-        ax3_left.set_yticklabels([f'Text {i+1}' for i in y_pos])
-        ax3_left.set_xlabel('Confidence Score')
-        ax3_left.set_title('Most Confident Positive Predictions', fontweight='bold')
-        ax3_left.set_xlim(0, 1)
+    positive_data = df[df['sentiment_mapped'] == 'POSITIVE']
+    if not positive_data.empty:
+        top_positive = positive_data.nlargest(min(5, len(positive_data)), 'confidence')
+        if not top_positive.empty:
+            y_pos = range(len(top_positive))
+            bars = ax3_left.barh(y_pos, top_positive['confidence'], color='#2E8B57', alpha=0.8, edgecolor='black')
+            ax3_left.set_yticks(y_pos)
+            ax3_left.set_yticklabels([f'Text {i+1}' for i in y_pos])
+            ax3_left.set_xlabel('Confidence Score', fontweight='bold')
+            ax3_left.set_title('Most Confident Positive Predictions', fontweight='bold', pad=15)
+            ax3_left.set_xlim(0, 1)
+            ax3_left.grid(True, alpha=0.3)
+            
+            # Add value labels on bars
+            for i, bar in enumerate(bars):
+                width = bar.get_width()
+                ax3_left.text(width + 0.01, bar.get_y() + bar.get_height()/2, 
+                             f'{width:.3f}', ha='left', va='center', fontweight='bold', fontsize=9)
+        else:
+            ax3_left.text(0.5, 0.5, 'No positive samples', ha='center', va='center', 
+                         transform=ax3_left.transAxes, fontsize=12)
     else:
         ax3_left.text(0.5, 0.5, 'No positive samples', ha='center', va='center', 
-                     transform=ax3_left.transAxes)
-        ax3_left.set_title('Most Confident Positive Predictions', fontweight='bold')
+                     transform=ax3_left.transAxes, fontsize=12)
     
-    # Most confident negative
-    top_negative = df[df['sentiment_mapped'] == 'NEGATIVE'].nlargest(5, 'confidence')
-    if not top_negative.empty:
-        y_pos = range(len(top_negative))
-        ax3_right.barh(y_pos, top_negative['confidence'], color='#DC143C', alpha=0.7)
-        ax3_right.set_yticks(y_pos)
-        ax3_right.set_yticklabels([f'Text {i+1}' for i in y_pos])
-        ax3_right.set_xlabel('Confidence Score')
-        ax3_right.set_title('Most Confident Negative Predictions', fontweight='bold')
-        ax3_right.set_xlim(0, 1)
+    ax3_left.set_title('Most Confident Positive Predictions', fontweight='bold')
+    ax3_left.set_facecolor('white')
+    
+    # Most confident negative  
+    negative_data = df[df['sentiment_mapped'] == 'NEGATIVE']
+    if not negative_data.empty:
+        top_negative = negative_data.nlargest(min(5, len(negative_data)), 'confidence')
+        if not top_negative.empty:
+            y_pos = range(len(top_negative))
+            bars = ax3_right.barh(y_pos, top_negative['confidence'], color='#DC143C', alpha=0.8, edgecolor='black')
+            ax3_right.set_yticks(y_pos)
+            ax3_right.set_yticklabels([f'Text {i+1}' for i in y_pos])
+            ax3_right.set_xlabel('Confidence Score', fontweight='bold')
+            ax3_right.set_title('Most Confident Negative Predictions', fontweight='bold', pad=15)
+            ax3_right.set_xlim(0, 1)
+            ax3_right.grid(True, alpha=0.3)
+            
+            # Add value labels on bars
+            for i, bar in enumerate(bars):
+                width = bar.get_width()
+                ax3_right.text(width + 0.01, bar.get_y() + bar.get_height()/2, 
+                              f'{width:.3f}', ha='left', va='center', fontweight='bold', fontsize=9)
+        else:
+            ax3_right.text(0.5, 0.5, 'No negative samples', ha='center', va='center', 
+                          transform=ax3_right.transAxes, fontsize=12)
     else:
         ax3_right.text(0.5, 0.5, 'No negative samples', ha='center', va='center', 
-                      transform=ax3_right.transAxes)
-        ax3_right.set_title('Most Confident Negative Predictions', fontweight='bold')
+                      transform=ax3_right.transAxes, fontsize=12)
     
-    plt.tight_layout()
+    ax3_right.set_title('Most Confident Negative Predictions', fontweight='bold')
+    ax3_right.set_facecolor('white')
+    
+    fig3.tight_layout()
     
     return fig1, fig2, fig3
 
@@ -462,48 +548,59 @@ with tab3:
             st.error(f"Error creating visualizations: {e}")
         
         # Time series analysis (if date column available)
+        # Time series analysis - SIMPLER VERSION
         if 'date' in df.columns:
             st.markdown("### 📈 Sentiment Over Time")
             
             try:
-                # Map sentiments for consistency
-                label_mapping = {
-                    'LABEL_0': 'NEGATIVE',
-                    'LABEL_1': 'POSITIVE', 
-                    'LABEL_2': 'NEUTRAL',
-                    'NEGATIVE': 'NEGATIVE',
-                    'POSITIVE': 'POSITIVE',
-                    'NEUTRAL': 'NEUTRAL'
-                }
+                # Use standardized sentiment labels
+                df['sentiment_mapped'] = df['sentiment'].apply(standardize_sentiment_label)
                 
-                df['sentiment_mapped'] = df['sentiment'].map(label_mapping).fillna(df['sentiment'])
+                # Simple approach: count by date and sentiment
+                df['date_str'] = df['date'].dt.strftime('%Y-%m-%d')  # Convert to string for grouping
                 
-                # Group by date and calculate daily sentiment
-                daily_sentiment = df.groupby([df['date'].dt.date, 'sentiment_mapped']).size().reset_index(name='count')
-                daily_sentiment = daily_sentiment.pivot(index='date', columns='sentiment_mapped', values='count').fillna(0)
+                time_data = df.groupby(['date_str', 'sentiment_mapped']).size().unstack(fill_value=0)
                 
-                # Create time series plot with matplotlib
-                fig_time, ax_time = plt.subplots(figsize=(12, 6))
+                st.write(f"Debug: Time data shape: {time_data.shape}")
+                st.write("Debug: Time data:")
+                st.dataframe(time_data)
                 
-                colors = {'POSITIVE': '#2E8B57', 'NEGATIVE': '#DC143C', 'NEUTRAL': '#4682B4'}
-                
-                for sentiment in daily_sentiment.columns:
-                    if sentiment in colors:
-                        ax_time.plot(daily_sentiment.index, daily_sentiment[sentiment], 
-                                   marker='o', label=sentiment, color=colors[sentiment], linewidth=2)
-                
-                ax_time.set_title("Sentiment Trends Over Time", fontsize=16, fontweight='bold')
-                ax_time.set_xlabel("Date", fontsize=12)
-                ax_time.set_ylabel("Number of Texts", fontsize=12)
-                ax_time.legend()
-                ax_time.grid(True, alpha=0.3)
-                plt.xticks(rotation=45)
-                plt.tight_layout()
-                
-                st.pyplot(fig_time)
-                
+                if not time_data.empty:
+                    # Create plot
+                    fig_time, ax_time = plt.subplots(figsize=(12, 6))
+                    
+                    colors = {'POSITIVE': '#2E8B57', 'NEGATIVE': '#DC143C', 'NEUTRAL': '#4682B4'}
+                    
+                    for sentiment in time_data.columns:
+                        if sentiment in colors:
+                            ax_time.plot(
+                                range(len(time_data)), 
+                                time_data[sentiment], 
+                                marker='o', 
+                                label=sentiment, 
+                                color=colors[sentiment], 
+                                linewidth=2
+                            )
+                    
+                    # Set x-axis labels
+                    ax_time.set_xticks(range(len(time_data)))
+                    ax_time.set_xticklabels(time_data.index, rotation=45)
+                    
+                    ax_time.set_title("Sentiment Trends Over Time", fontsize=16, fontweight='bold')
+                    ax_time.set_xlabel("Date", fontsize=12)
+                    ax_time.set_ylabel("Count", fontsize=12)
+                    ax_time.legend()
+                    ax_time.grid(True, alpha=0.3)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig_time, use_container_width=True)
+                    plt.close(fig_time)
+                else:
+                    st.warning("No time series data to display.")
+            
             except Exception as e:
-                st.error(f"Error creating time series plot: {e}")
+                st.error(f"Time series error: {e}")
+                st.code(traceback.format_exc())
         
         # Detailed results table
         st.markdown("### 📋 Detailed Results")
@@ -604,5 +701,4 @@ st.markdown("""
     Built with ❤️ using Streamlit, Seaborn, and Hugging Face Transformers<br>
     Perfect for learning AI deployment and sentiment analysis!
 </div>
-
 """, unsafe_allow_html=True)
